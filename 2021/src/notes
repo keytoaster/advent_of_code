@@ -1,0 +1,27 @@
+day18:
+
+To fix:
+Clone currently clones the Rc, i.e. only the pointer, not the node itself.
+
+High-level options:
+
+1) Continue with Rc<RefCell>, but hide introduce a wrapper class that hides the top-level Rc
+so that Add can be Wrapper + Wrapper -> Wrapper.
+
+2) Use Ids_
+type Id = usize;
+pub struct Tree {
+    descendants: BTreeMap<Id, Node2>,
+    root: Option<Id>,
+}
+
+
+3) Use raw pointers.
+
+
+TODO:
+* Make SnailfishNumber Copy? Or Clone? Replace manual constructions.
+* Get rid of the redundant Rc.
+* Perform parent pointer checks only for debugging. find ifdef debug equivalent?
+* Use a logging library to print lines for debugging only.
+* Implement again using raw pointers.
