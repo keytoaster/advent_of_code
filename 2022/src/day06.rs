@@ -1,4 +1,4 @@
-use std::collections::{VecDeque, HashSet, HashMap};
+use std::collections::{VecDeque, HashMap};
 use std::env;
 use std::error::Error;
 use std::fs::File;
@@ -14,7 +14,7 @@ where
 }
 
 fn run(input: &str, size: usize) -> Result<usize, Box<dyn Error>> {
-    let mut set: HashMap<char, u32> = HashMap::new();
+    let mut in_window: HashMap<char, u32> = HashMap::new();
     let mut buf: VecDeque<char> = VecDeque::with_capacity(size);
 
     let mut pos = 0;
@@ -25,20 +25,20 @@ fn run(input: &str, size: usize) -> Result<usize, Box<dyn Error>> {
         if buf.len() == size {
             let gone = &buf.pop_front().unwrap();
 
-            match set.get(gone).unwrap() {
-                1 => set.remove(gone),
-                n => set.insert(*gone, n - 1),
+            match in_window.get(gone).unwrap() {
+                1 => in_window.remove(gone),
+                n => in_window.insert(*gone, n - 1),
             };
         }
 
-        match set.get(&c) {
-            Some(n) => set.insert(c, n + 1),
-            None => set.insert(c, 1)
+        match in_window.get(&c) {
+            Some(n) => in_window.insert(c, n + 1),
+            None => in_window.insert(c, 1)
         };
 
         buf.push_back(c);
 
-        if set.len() == size {
+        if in_window.len() == size {
             return Ok(pos);
         }
     }
