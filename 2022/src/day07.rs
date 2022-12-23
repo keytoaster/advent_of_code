@@ -108,9 +108,9 @@ impl AocDir {
     }
 }
 
-fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, Box<dyn Error>> {    
+fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, Box<dyn Error>> {
     let root_directory = Rc::new(AocDir::new(None));
-    let root_dirent = Rc::new(AocDirent { 
+    let root_dirent = Rc::new(AocDirent {
         name: "/".to_string(),
         data: AocData::Dir(root_directory.clone()),
     });
@@ -130,14 +130,13 @@ fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, B
                     } else {
                         unreachable!()
                     };
-                    cwd_str= vec![root_dirent.name.clone()];
-                }
-                else if target == ".." {
+                    cwd_str = vec![root_dirent.name.clone()];
+                } else if target == ".." {
                     cwd = cwd.parent.as_ref().unwrap().clone();
                     cwd_str.pop();
                 } else {
                     let mut target_dir = None;
-                    
+
                     for dirent in &*cwd.dirents.borrow() {
                         if dirent.name == *target {
                             if let AocData::Dir(dir) = &dirent.data {
@@ -146,7 +145,7 @@ fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, B
                                 break;
                             } else {
                                 return Err("attempted to cd into non-directory".into());
-                            }                            
+                            }
                         }
                     }
 
@@ -158,17 +157,17 @@ fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, B
                 }
 
                 // println!("New CWD: {:?}", cwd_str);
-            },
+            }
             Line::Directory { name } => {
-                cwd.dirents.borrow_mut().push(Rc::new(AocDirent { 
+                cwd.dirents.borrow_mut().push(Rc::new(AocDirent {
                     name: name.clone(),
                     data: AocData::Dir(Rc::new(AocDir::new(Some(cwd.clone())))),
                 }));
             }
             Line::File { name, size } => {
-                cwd.dirents.borrow_mut().push(Rc::new(AocDirent { 
+                cwd.dirents.borrow_mut().push(Rc::new(AocDirent {
                     name: name.clone(),
-                    data: AocData::File(Rc::new(AocFile { size: *size })),                    
+                    data: AocData::File(Rc::new(AocFile { size: *size })),
                 }));
             }
             Line::Ls => {
@@ -190,7 +189,7 @@ fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, B
 //   on those. Even if it makes the AoC puzzle much harder.
 //
 // * Cache directory sizes in the directory structure to avoid re-calculations. But this is
-//   unreasonable for real filesystems: 
+//   unreasonable for real filesystems:
 //   https://superuser.com/questions/501453/why-doesnt-ext4-cache-directory-size.
 //
 // * Cache directory sizes in a separate structure, e.g. in a duplicate tree with the same
@@ -200,16 +199,18 @@ fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, B
 // be a concern anyway.
 
 fn walk<F>(dirent: &AocDirent, cb: &mut F)
-where F: FnMut(&AocDirent)  {
+where
+    F: FnMut(&AocDirent),
+{
     match &dirent.data {
         AocData::File(_) => {
             cb(dirent);
-        },
+        }
         AocData::Dir(dir) => {
             for child in &*dir.dirents.borrow() {
                 walk(child, cb);
             }
-    
+
             cb(dirent);
         }
     }
@@ -217,13 +218,12 @@ where F: FnMut(&AocDirent)  {
 
 fn dirent_size(dirent: &AocDirent) -> u32 {
     match &dirent.data {
-        AocData::File(file) => {
-            file.size
-        },
-        AocData::Dir(dir) => {
-            dir.dirents.borrow().iter().fold(
-                0, |total, dir| total + dirent_size(dir))
-        },
+        AocData::File(file) => file.size,
+        AocData::Dir(dir) => dir
+            .dirents
+            .borrow()
+            .iter()
+            .fold(0, |total, dir| total + dirent_size(dir)),
     }
 }
 
@@ -232,7 +232,7 @@ fn part1(input: io::Lines<io::BufReader<File>>) -> Result<u32, Box<dyn Error>> {
 
     let mut sum = 0;
 
-    walk(&root_dirent,  &mut|dirent| {
+    walk(&root_dirent, &mut |dirent| {
         if let AocData::Dir(_) = dirent.data {
             let size = dirent_size(dirent);
             if size < 100_000 {
@@ -243,7 +243,6 @@ fn part1(input: io::Lines<io::BufReader<File>>) -> Result<u32, Box<dyn Error>> {
 
     Ok(sum)
 }
-
 
 /// Part 2
 
@@ -259,7 +258,7 @@ fn part2(input: io::Lines<io::BufReader<File>>) -> Result<u32, Box<dyn Error>> {
 
     let mut smallest_directory_size = u32::MAX;
 
-    walk(&root_dirent,  &mut|dirent| {
+    walk(&root_dirent, &mut |dirent| {
         if let AocData::Dir(_) = dirent.data {
             let size = dirent_size(dirent);
             if size > need_to_delete && size < smallest_directory_size {
