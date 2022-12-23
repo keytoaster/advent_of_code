@@ -76,12 +76,16 @@ fn parse_line(input: &str) -> Result<Line, Box<dyn Error>> {
     Ok(line)
 }
 
-// TODO: These Option fields look more like a protobuf. An Enum would probably be more Rusty.
 #[derive(Debug)]
 struct AocDirent {
     name: String,
-    file: Option<Rc<AocFile>>,
-    directory: Option<Rc<AocDir>>,
+    data: AocData,
+}
+
+#[derive(Debug)]
+enum AocData {
+    File(Rc<AocFile>),
+    Dir(Rc<AocDir>),
 }
 
 #[derive(Debug)]
@@ -104,39 +108,40 @@ impl AocDir {
     }
 }
 
-fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, Box<dyn Error>> {
-
+fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, Box<dyn Error>> {    
+    let root_directory = Rc::new(AocDir::new(None));
     let root_dirent = Rc::new(AocDirent { 
         name: "/".to_string(),
-        file: None,
-        directory: Some(Rc::new(AocDir::new(None))),
+        data: AocData::Dir(root_directory.clone()),
     });
 
-    let mut cwd = root_dirent.directory.as_ref().unwrap().clone();
+    let mut cwd = root_directory.clone();
     let mut cwd_str = vec![root_dirent.name.clone()];
 
     for line in input {
         let line = line?;
         let foo = parse_line(&line)?;
 
-        println!("foo: {:?}", foo);
-
         match &foo {
             Line::ChangeDir { target } => {
                 if target == "/" {
-                    cwd = root_dirent.directory.as_ref().unwrap().clone();
-                    cwd_str = vec![root_dirent.name.clone()];
+                    cwd = if let AocData::Dir(dir) = &root_dirent.data {
+                        dir.clone()
+                    } else {
+                        unreachable!()
+                    };
+                    cwd_str= vec![root_dirent.name.clone()];
                 }
                 else if target == ".." {
                     cwd = cwd.parent.as_ref().unwrap().clone();
                     cwd_str.pop();
                 } else {
-                    let mut new_dir = None;
+                    let mut target_dir = None;
                     
                     for dirent in &*cwd.dirents.borrow() {
                         if dirent.name == *target {
-                            if let Some(directory) = &dirent.directory {
-                                new_dir = Some(directory.clone());
+                            if let AocData::Dir(dir) = &dirent.data {
+                                target_dir = Some(dir.clone());
                                 cwd_str.push(dirent.name.clone());
                                 break;
                             } else {
@@ -145,29 +150,25 @@ fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, B
                         }
                     }
 
-                    if let Some(new_dir) = new_dir {
-                        cwd = new_dir;
+                    if let Some(target_dir) = target_dir {
+                        cwd = target_dir;
                     } else {
                         return Err(format!("{} does not exist", target).into());
                     }
                 }
 
-                println!("New CWD: {:?}", cwd_str);
+                // println!("New CWD: {:?}", cwd_str);
             },
             Line::Directory { name } => {
-                let new_directory = Rc::new(AocDir::new(Some(cwd.clone())));
-
                 cwd.dirents.borrow_mut().push(Rc::new(AocDirent { 
                     name: name.clone(),
-                    file: None,
-                    directory: Some(new_directory.clone()),
+                    data: AocData::Dir(Rc::new(AocDir::new(Some(cwd.clone())))),
                 }));
             }
             Line::File { name, size } => {
                 cwd.dirents.borrow_mut().push(Rc::new(AocDirent { 
                     name: name.clone(),
-                    file: Some(Rc::new(AocFile { size: *size })),
-                    directory: None,
+                    data: AocData::File(Rc::new(AocFile { size: *size })),                    
                 }));
             }
             Line::Ls => {
@@ -200,27 +201,29 @@ fn parse_input(input: io::Lines<io::BufReader<File>>) -> Result<Rc<AocDirent>, B
 
 fn walk<F>(dirent: &AocDirent, cb: &mut F)
 where F: FnMut(&AocDirent)  {
-    if let Some(_file) = &dirent.file {
-        cb(dirent);
-    } else if let Some(directory) = &dirent.directory {
-        for child in &*directory.dirents.borrow() {
-            walk(child, cb);
+    match &dirent.data {
+        AocData::File(_) => {
+            cb(dirent);
+        },
+        AocData::Dir(dir) => {
+            for child in &*dir.dirents.borrow() {
+                walk(child, cb);
+            }
+    
+            cb(dirent);
         }
-
-        cb(dirent);
-    } else {
-        panic!("unexpected");
-    }   
+    }
 }
 
 fn dirent_size(dirent: &AocDirent) -> u32 {
-    if let Some(file) = &dirent.file {
-        return file.size;
-    } else if let Some(directory) = &dirent.directory {
-        return directory.dirents.borrow().iter().fold(
-            0, |total, dir| total + dirent_size(dir));
-    } else {
-        panic!("unexpected");
+    match &dirent.data {
+        AocData::File(file) => {
+            file.size
+        },
+        AocData::Dir(dir) => {
+            dir.dirents.borrow().iter().fold(
+                0, |total, dir| total + dirent_size(dir))
+        },
     }
 }
 
@@ -230,7 +233,7 @@ fn part1(input: io::Lines<io::BufReader<File>>) -> Result<u32, Box<dyn Error>> {
     let mut sum = 0;
 
     walk(&root_dirent,  &mut|dirent| {
-        if dirent.directory.is_some() {
+        if let AocData::Dir(_) = dirent.data {
             let size = dirent_size(dirent);
             if size < 100_000 {
                 sum += size;
@@ -257,7 +260,7 @@ fn part2(input: io::Lines<io::BufReader<File>>) -> Result<u32, Box<dyn Error>> {
     let mut smallest_directory_size = u32::MAX;
 
     walk(&root_dirent,  &mut|dirent| {
-        if dirent.directory.is_some() {
+        if let AocData::Dir(_) = dirent.data {
             let size = dirent_size(dirent);
             if size > need_to_delete && size < smallest_directory_size {
                 smallest_directory_size = size;
